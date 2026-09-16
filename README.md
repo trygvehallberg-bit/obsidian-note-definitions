@@ -160,6 +160,31 @@ You can edit your properties directly, although for convenience, it is recommend
 To remove contexts, simply remove the file path from the `def-context` property.
 Or if you want to remove all contexts, you can delete the `def-context` property altogether.
 
+## Global definition file discovery
+
+By default, only files within your definition folder are treated as definition files.
+If you'd rather keep definitions alongside your regular notes instead of confining them to one folder, you can opt into discovering definition files by tag instead.
+
+### Usage
+
+1. In the plugin settings, enable `Enable tag-based definition file discovery`.
+2. Set the `Definition file tag` to the tag you want to use. This defaults to `def`.
+3. Add that tag to the `tags` frontmatter (property) of any note you want to be treated as a definition file, eg.
+```
+---
+tags:
+  - definition
+---
+```
+Obsidian provides a nice UI to manage the `tags` frontmatter.
+4. The note is now parsed for definitions like any other definition file (following the same [definition rules](#definition-rules) above), regardless of which folder it lives in.
+
+Note that only the `tags` frontmatter property is checked — inline `#tags` written in the body of a note are not considered.
+
+Tag-based discovery works alongside folder-based discovery rather than replacing it: a file is treated as a definition file if it's in your definition folder **or** carries the configured tag.
+
+*Note: You may suffer from performance issues if your vault is large, as this feature requires the plugin to examine all files in your vault. If you suffer from performance degradation, turn this feature off.*
+
 ## Refreshing definitions
 
 Whenever you find that the plugin is not detecting certain definitions or definition files, run the `Refresh definitions` command to manually get the plugin to read your definition files.

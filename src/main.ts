@@ -276,6 +276,17 @@ export default class NoteDefinition extends Plugin {
 						}
 					}
 				}
+
+				if (getSettings().enableTagDefFileDiscovery) {
+					const isDef = this.defManager.isDefFile(file);
+					const wasDef = this.defManager.globalDefFiles.has(
+						file.path,
+					);
+					if (isDef !== wasDef) {
+						this.fileExplorerDeco.run();
+						this.refreshDefinitions();
+					}
+				}
 			}),
 		);
 	}

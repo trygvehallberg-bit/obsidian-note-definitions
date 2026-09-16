@@ -1,4 +1,4 @@
-import { App, Notice, TFile, TFolder } from "obsidian";
+import { App, Notice, parseFrontMatterTags, TFile, TFolder } from "obsidian";
 import { PTreeNode } from "src/editor/prefix-tree";
 import { DEFAULT_DEF_FOLDER, VALID_DEFINITION_FILE_TYPES } from "src/settings";
 import { normaliseWord } from "src/util/editor";
@@ -180,10 +180,30 @@ export class DefManager {
 	}
 
 	isDefFile(file: TFile): boolean {
+		if (
+			!VALID_DEFINITION_FILE_TYPES.some((ext) => file.path.endsWith(ext))
+		) {
+			return false;
+		}
+		if (file.path.startsWith(this.getGlobalDefFolder())) {
+			return true;
+		}
 		return (
-			file.path.startsWith(this.getGlobalDefFolder()) &&
-			VALID_DEFINITION_FILE_TYPES.some((ext) => file.path.endsWith(ext))
+			getSettings().enableTagDefFileDiscovery && this.hasDefFileTag(file)
 		);
+	}
+
+	private hasDefFileTag(file: TFile): boolean {
+		const settings = getSettings();
+		if (!settings.defFileTag) {
+			return false;
+		}
+		const cache = this.app.metadataCache.getFileCache(file);
+		if (!cache) {
+			return false;
+		}
+		const tags = parseFrontMatterTags(cache.frontmatter) ?? [];
+		return tags.includes(`#${settings.defFileTag}`);
 	}
 
 	reset() {
@@ -298,15 +318,21 @@ export class DefManager {
 			}
 		});
 
-		if (!globalFolder) {
+		const definitions: Definition[] = [];
+
+		if (globalFolder) {
+			// Recursively load files within the global definition folder
+			definitions.push(...(await this.parseFolder(globalFolder)));
+		} else {
 			logWarn(
 				"Global definition folder not found, unable to load global definitions",
 			);
-			return;
 		}
 
-		// Recursively load files within the global definition folder
-		const definitions = await this.parseFolder(globalFolder);
+		if (getSettings().enableTagDefFileDiscovery) {
+			definitions.push(...(await this.parseTaggedFiles()));
+		}
+
 		definitions.forEach((def) => {
 			this.globalDefs.set(def);
 		});
@@ -318,6 +344,26 @@ export class DefManager {
 
 		this.buildPrefixTree();
 		this.lastUpdate = Date.now();
+	}
+
+	// Scan the entire vault for markdown files carrying the def file tag
+	private async parseTaggedFiles(): Promise<Definition[]> {
+		const definitions: Definition[] = [];
+		const files = this.app.vault
+			.getMarkdownFiles()
+			.filter(
+				(f) =>
+					!this.globalDefFiles.has(f.path) && this.hasDefFileTag(f),
+			);
+		for (let f of files) {
+			try {
+				let defs = await this.parseFile(f);
+				definitions.push(...defs);
+			} catch (e) {
+				this.reportParseError(f, e);
+			}
+		}
+		return definitions;
 	}
 
 	private async buildPrefixTree() {
@@ -373,9 +419,23 @@ export class DefManager {
 		);
 		if (!parentDefFolder) {
 			logWarn("Failed to get parent def folder");
-			return [[], []];
 		}
-		return this.walkFolder(parentDefFolder);
+		const [folders, files] = parentDefFolder
+			? this.walkFolder(parentDefFolder)
+			: [[] as TFolder[], [] as TFile[]];
+
+		if (getSettings().enableTagDefFileDiscovery) {
+			const existing = new Set(files.map((f) => f.path));
+			this.app.vault
+				.getMarkdownFiles()
+				.filter((f) => !existing.has(f.path) && this.hasDefFileTag(f))
+				.forEach((f) => {
+					this.globalDefFiles.set(f.path, f);
+					files.push(f);
+				});
+		}
+
+		return [folders, files];
 	}
 
 	private walkFolder(folder: TFolder): [TFolder[], TFile[]] {

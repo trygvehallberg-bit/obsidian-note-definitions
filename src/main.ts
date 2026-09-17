@@ -9,7 +9,7 @@ import {
 	debounce,
 } from "obsidian";
 import { injectGlobals } from "./globals";
-import { logDebug } from "./util/log";
+import { logDebug, logError } from "./util/log";
 import { definitionMarker } from "./editor/decoration";
 import { Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
@@ -38,10 +38,12 @@ export default class NoteDefinition extends Plugin {
 	activeEditorExtensions: Extension[] = [];
 	defManager: DefManager;
 	fileExplorerDeco: FileExplorerDecoration;
-	private refreshDefinitionFiles = debounce(
+	refreshDefinitions = debounce(
 		() => {
 			this.fileExplorerDeco.run();
-			this.refreshDefinitions();
+			this.defManager.loadDefinitions().catch((error) => {
+				logError(`Failed to refresh definitions: ${error}`);
+			});
 		},
 		250,
 		true,
@@ -87,7 +89,6 @@ export default class NoteDefinition extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(window.NoteDefinition.settings);
-		this.fileExplorerDeco.run();
 		this.refreshDefinitions();
 	}
 
@@ -259,7 +260,7 @@ export default class NoteDefinition extends Plugin {
 			this.app.vault.on("create", (file) => {
 				const settings = getSettings();
 				if (file.path.startsWith(settings.defFolder)) {
-					this.refreshDefinitionFiles();
+					this.refreshDefinitions();
 				}
 			}),
 		);
@@ -291,7 +292,7 @@ export default class NoteDefinition extends Plugin {
 						file.path,
 					);
 					if (isDef !== wasDef) {
-						this.refreshDefinitionFiles();
+						this.refreshDefinitions();
 					}
 				}
 			}),
@@ -317,10 +318,6 @@ export default class NoteDefinition extends Plugin {
 		});
 	}
 
-	refreshDefinitions() {
-		this.defManager.loadDefinitions();
-	}
-
 	reloadUpdatedDefinitions() {
 		this.defManager.loadUpdatedFiles();
 	}
@@ -342,6 +339,7 @@ export default class NoteDefinition extends Plugin {
 	}
 
 	onunload() {
+		this.refreshDefinitions.cancel();
 		logDebug("Unload note definition plugin");
 		getDefinitionPopover().cleanUp();
 	}

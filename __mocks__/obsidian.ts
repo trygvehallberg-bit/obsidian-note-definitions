@@ -1,3 +1,5 @@
+import { parse } from "yaml";
+
 export class App {
 	vault: Vault;
 	metadataCache: MetadataCache;
@@ -68,25 +70,5 @@ export function getFrontMatterInfo(content: string) {
 }
 
 export function parseYaml(yaml: string): Record<string, unknown> {
-	const result: Record<string, unknown> = {};
-	const lines = yaml.split(/\r?\n/);
-	for (let index = 0; index < lines.length; index++) {
-		const match = lines[index].match(/^([^:]+):\s*(.*)$/);
-		if (!match) continue;
-		const key = match[1].trim();
-		const scalar = match[2].trim();
-		if (scalar) {
-			result[key] = scalar.replace(/^['"]|['"]$/g, "");
-			continue;
-		}
-		const values: string[] = [];
-		while (index + 1 < lines.length) {
-			const item = lines[index + 1].match(/^\s+-\s+(.+)$/);
-			if (!item) break;
-			values.push(item[1].trim().replace(/^['"]|['"]$/g, ""));
-			index++;
-		}
-		result[key] = values;
-	}
-	return result;
+	return parse(yaml);
 }

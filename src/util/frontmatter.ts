@@ -14,14 +14,17 @@ export function readFileFrontmatter(
 	cache: CachedMetadata | null,
 ): FileFrontmatter {
 	const info = getFrontMatterInfo(fileContent);
-	const data =
-		cache?.frontmatter ??
-		(info.exists ? parseYaml(info.frontmatter) : undefined);
-	const contentStart = cache?.frontmatterPosition
-		? cache.frontmatterPosition.end.offset + 1
-		: info.exists
-			? info.contentStart
-			: 0;
+	let data = cache?.frontmatter;
+	if (data == null && info.exists) {
+		data = parseYaml(info.frontmatter);
+	}
+
+	let contentStart = 0;
+	if (cache?.frontmatterPosition) {
+		contentStart = cache.frontmatterPosition.end.offset + 1;
+	} else if (info.exists) {
+		contentStart = info.contentStart;
+	}
 
 	return { data, contentStart };
 }

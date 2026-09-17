@@ -6,6 +6,7 @@ import {
 	WorkspaceWindow,
 	TFile,
 	MarkdownView,
+	debounce,
 } from "obsidian";
 import { injectGlobals } from "./globals";
 import { logDebug } from "./util/log";
@@ -37,6 +38,14 @@ export default class NoteDefinition extends Plugin {
 	activeEditorExtensions: Extension[] = [];
 	defManager: DefManager;
 	fileExplorerDeco: FileExplorerDecoration;
+	private refreshDefinitionFiles = debounce(
+		() => {
+			this.fileExplorerDeco.run();
+			this.refreshDefinitions();
+		},
+		250,
+		true,
+	);
 
 	async onload() {
 		// Settings are injected into global object
@@ -250,8 +259,7 @@ export default class NoteDefinition extends Plugin {
 			this.app.vault.on("create", (file) => {
 				const settings = getSettings();
 				if (file.path.startsWith(settings.defFolder)) {
-					this.fileExplorerDeco.run();
-					this.refreshDefinitions();
+					this.refreshDefinitionFiles();
 				}
 			}),
 		);
@@ -283,8 +291,7 @@ export default class NoteDefinition extends Plugin {
 						file.path,
 					);
 					if (isDef !== wasDef) {
-						this.fileExplorerDeco.run();
-						this.refreshDefinitions();
+						this.refreshDefinitionFiles();
 					}
 				}
 			}),

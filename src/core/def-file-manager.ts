@@ -34,6 +34,8 @@ export class DefManager {
 
 	// Populated on every full load/refresh (loadDefinitions)
 	duplicateDefs: DuplicateDefinition[];
+	private loadPromise: Promise<void> | null = null;
+	private reloadRequested = false;
 
 	constructor(app: App) {
 		this.app = app;
@@ -223,9 +225,26 @@ export class DefManager {
 	// Load all definitions from registered def folder
 	// This will recurse through the def folder, parsing all definition files
 	// Expensive operation so use sparingly
-	loadDefinitions() {
-		this.reset();
-		return this.loadGlobals().then(this.updateActiveFile.bind(this));
+	loadDefinitions(): Promise<void> {
+		this.reloadRequested = true;
+		if (!this.loadPromise) {
+			this.loadPromise = this.runDefinitionLoads().finally(() => {
+				this.loadPromise = null;
+				if (this.reloadRequested) {
+					return this.loadDefinitions();
+				}
+			});
+		}
+		return this.loadPromise;
+	}
+
+	private async runDefinitionLoads(): Promise<void> {
+		while (this.reloadRequested) {
+			this.reloadRequested = false;
+			this.reset();
+			await this.loadGlobals();
+			this.updateActiveFile();
+		}
 	}
 
 	triggerDuplicateDefWarning() {
